@@ -11,6 +11,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"strings"
 )
 
 func main() {
@@ -28,6 +29,21 @@ func main() {
 			Name:  "surl, s",
 			Value: "http://127.0.0.1",
 			Usage: "server url",
+		},
+		cli.StringFlag{
+			Name:  "uppath, up",
+			Value: "/filesm/upload",
+			Usage: "upload url path",
+		},
+		cli.StringFlag{
+			Name:  "downpath, dp",
+			Value: "/filesm/download",
+			Usage: "download url path",
+		},
+		cli.StringFlag{
+			Name:  "head",
+			Value: "",
+			Usage: "add head key",
 		},
 	}
 	app.Commands = []cli.Command{
@@ -68,9 +84,22 @@ func main() {
 	}
 }
 
+func head(c *cli.Context) (key, value string) {
+	head := c.GlobalString("head")
+	kv := strings.Split(head, ":")
+	if len(kv) == 2 {
+		key = kv[0]
+		value = kv[1]
+	} else {
+		key = ""
+	}
+	return
+}
+
 func upload(c *cli.Context) error {
 	murl := c.GlobalString("surl")
-	murl = murl + "/filesm/upload"
+	uploadpath := c.GlobalString("up")
+	murl = murl + uploadpath
 
 	var b bytes.Buffer
 	w := multipart.NewWriter(&b)
@@ -96,6 +125,11 @@ func upload(c *cli.Context) error {
 	req, err := http.NewRequest("POST", murl, &b)
 	if err != nil {
 		return err
+	}
+
+	k, v := head(c)
+	if !strings.EqualFold(k, "") {
+		req.Header.Set(k, v)
 	}
 	// Don't forget to set the content type, this will contain the boundary.
 	req.Header.Set("Content-Type", w.FormDataContentType())
@@ -123,10 +157,23 @@ func upload(c *cli.Context) error {
 
 func download(c *cli.Context) error {
 	murl := c.GlobalString("surl")
-	murl = murl + "/filesm/download"
+	downloadpath := c.GlobalString("dp")
+	murl = murl + downloadpath
 	file := c.String("file")
 	murl = murl + "/" + file
-	res, err := http.Get(murl)
+
+	req, err := http.NewRequest("GET", murl, nil)
+	if err != nil {
+		return err
+	}
+	k, v := head(c)
+	if !strings.EqualFold(k, "") {
+		req.Header.Set(k, v)
+	}
+	req.Header.Set("charset", "UTF-8")
+
+	client := &http.Client{}
+	res, err := client.Do(req)
 	if err != nil {
 		return err
 	}

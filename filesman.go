@@ -4,11 +4,13 @@ import (
 	"fmt"
 	"github.com/gin-gonic/gin"
 	"github.com/minio/sha256-simd"
+	"github.com/tjfoc/gmsm/sm3"
 	"io/ioutil"
 	"mime"
 	"net/http"
 	"os"
 	"path/filepath"
+	"strings"
 )
 
 const FILEKEY = "uploadfile"
@@ -25,7 +27,7 @@ func NewFilesman() *Filesman {
 	return filesman
 }
 
-func (filesman *Filesman) Upload(c *gin.Context) {
+func (filesman *Filesman) Upload(c *gin.Context) (filename string){
 	c.Header("Access-Control-Allow-Origin", "*")
 	if err := c.Request.ParseMultipartForm(filesman.MaxUploadSize); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{
@@ -111,6 +113,7 @@ func (filesman *Filesman) Upload(c *gin.Context) {
 		"status": "ok",
 		"file":   fileName + fileEndings[0],
 	})
+	return fileName + fileEndings[0]
 }
 
 func (filesman *Filesman) Download(c *gin.Context) {
@@ -118,4 +121,44 @@ func (filesman *Filesman) Download(c *gin.Context) {
 	filename := c.Param("filename")
 	filepath := filepath.Join(filesman.Filedir, filename)
 	c.File(filepath)
+}
+
+func (filesman *Filesman) Hash(c *gin.Context) {
+	c.Header("Access-Control-Allow-Origin", "*")
+	filename := c.Param("filename")
+	filepath := filepath.Join(filesman.Filedir, filename)
+
+	file, err := os.OpenFile(filepath,os.O_RDONLY,0644)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"status":  "error",
+			"message": "Can not write file",
+		})
+		return
+	}
+	defer file.Close()
+
+	fileBytes, err := ioutil.ReadAll(file)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"status":  "error",
+			"message": "Invalid file",
+		})
+		return
+	}
+
+	hashtype := c.GetHeader("hashtype")
+	var hash string
+	if strings.EqualFold(hashtype,"sha256"){
+		hash = fmt.Sprintf("%x", sha256.Sum256(fileBytes))
+	} else if strings.EqualFold(hashtype,"sm3") {
+		hash = fmt.Sprintf("%x", sm3.Sm3Sum(fileBytes))
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"status":  "ok",
+		"hashtype":hashtype,
+		"hash": hash,
+	})
+	return
 }

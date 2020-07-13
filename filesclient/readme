@@ -1,0 +1,2 @@
+ --surl "http://127.0.0.1:8080" --head "token:" --up "/files/upload" upload -f /tmp/zs.png
+ --surl "http://127.0.0.1:8080" --head "token:" --dp "/files/download" download -f filename -d "D:\\"

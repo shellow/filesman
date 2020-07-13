@@ -44,7 +44,7 @@ func server() {
 		c.Header("Access-Control-Allow-Origin", "*")
 		c.String(http.StatusOK, "Hello World")
 	})
-	router.POST("/filesm/upload", Filesm.Upload)
+	router.POST("/filesm/upload", upload)
 	router.GET("/filesm/download/:filename", Filesm.Download)
 
 	s := &http.Server{
@@ -61,4 +61,8 @@ func server() {
 		Logger.Error(err)
 		os.Exit(-1)
 	}
+}
+
+func upload(c *gin.Context) {
+	Filesm.Upload(c)
 }
