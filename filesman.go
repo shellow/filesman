@@ -123,6 +123,7 @@ func (filesman *Filesman) Download(c *gin.Context) {
 	c.Header("Access-Control-Allow-Origin", "*")
 	filename := c.Param("filename")
 	filepath := filepath.Join(filesman.Filedir, filename)
+	c.Header("status", "ok")
 	c.File(filepath)
 }
 
