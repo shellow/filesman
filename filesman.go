@@ -321,10 +321,8 @@ func (filesman *Filesman) ImgAddPdf(c *gin.Context) {
 		return
 	}
 
-	if err != nil {
-		c.JSON(http.StatusOK, gin.H{
-			"status":      "ok",
-			"resaultfile": outfile,
-		})
-	}
+	c.JSON(http.StatusOK, gin.H{
+		"status":      "ok",
+		"resaultfile": outfile,
+	})
 }
