@@ -110,6 +110,7 @@ func upload(c *cli.Context) error {
 		return err
 	}
 	defer f.Close()
+	//w.WriteField()
 	fw, err := w.CreateFormFile(filesman.FILEKEY, file)
 	if err != nil {
 		return err

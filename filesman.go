@@ -5,11 +5,14 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/minio/sha256-simd"
 	"github.com/tjfoc/gmsm/sm3"
+	"github.com/unidoc/unipdf/creator"
+	pdf "github.com/unidoc/unipdf/v3/model"
 	"io/ioutil"
 	"mime"
 	"net/http"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 )
 
@@ -27,7 +30,7 @@ func NewFilesman() *Filesman {
 	return filesman
 }
 
-func (filesman *Filesman) Upload(c *gin.Context) (filename string){
+func (filesman *Filesman) Upload(c *gin.Context) (filename string) {
 	c.Header("Access-Control-Allow-Origin", "*")
 	if err := c.Request.ParseMultipartForm(filesman.MaxUploadSize); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{
@@ -128,7 +131,7 @@ func (filesman *Filesman) Hash(c *gin.Context) {
 	filename := c.Param("filename")
 	filepath := filepath.Join(filesman.Filedir, filename)
 
-	file, err := os.OpenFile(filepath,os.O_RDONLY,0644)
+	file, err := os.OpenFile(filepath, os.O_RDONLY, 0644)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{
 			"status":  "error",
@@ -149,16 +152,179 @@ func (filesman *Filesman) Hash(c *gin.Context) {
 
 	hashtype := c.GetHeader("hashtype")
 	var hash string
-	if strings.EqualFold(hashtype,"sha256"){
+	if strings.EqualFold(hashtype, "sha256") {
 		hash = fmt.Sprintf("%x", sha256.Sum256(fileBytes))
-	} else if strings.EqualFold(hashtype,"sm3") {
+	} else if strings.EqualFold(hashtype, "sm3") {
 		hash = fmt.Sprintf("%x", sm3.Sm3Sum(fileBytes))
 	}
 
 	c.JSON(http.StatusOK, gin.H{
-		"status":  "ok",
-		"hashtype":hashtype,
-		"hash": hash,
+		"status":   "ok",
+		"hashtype": hashtype,
+		"hash":     hash,
 	})
 	return
+}
+
+func AddImageToPdf(inputPath string, outputPath string, imagePath string, pageNum int, xPos float64, yPos float64, iwidth float64) error {
+
+	c := creator.New()
+
+	// Prepare the image.
+	img, err := c.NewImageFromFile(imagePath)
+	if err != nil {
+		return err
+	}
+	img.ScaleToWidth(iwidth)
+	img.SetPos(xPos, yPos)
+
+	// Read the input pdf file.
+	f, err := os.Open(inputPath)
+	if err != nil {
+		return err
+	}
+	defer f.Close()
+
+	pdfReader, err := pdf.NewPdfReader(f)
+	if err != nil {
+		return err
+	}
+
+	numPages, err := pdfReader.GetNumPages()
+	if err != nil {
+		return err
+	}
+
+	// Load the pages.
+	for i := 0; i < numPages; i++ {
+		page, err := pdfReader.GetPage(i + 1)
+		if err != nil {
+			return err
+		}
+
+		// Add the page.
+		err = c.AddPage(page)
+		if err != nil {
+			return err
+		}
+
+		// If the specified page, or -1, apply the image to the page.
+		if i+1 == pageNum || pageNum == -1 {
+			_ = c.Draw(img)
+		}
+	}
+
+	err = c.WriteToFile(outputPath)
+	return err
+}
+
+func (filesman *Filesman) ImgAddPdf(c *gin.Context) {
+	c.Header("Access-Control-Allow-Origin", "*")
+	pdf, ok := c.GetPostForm("pdf")
+	if !ok {
+		c.JSON(http.StatusOK, gin.H{
+			"status":  "error",
+			"message": "Params pdf error",
+		})
+		return
+	}
+	pdfpath := filepath.Join(filesman.Filedir, pdf)
+
+	pagestr, ok := c.GetPostForm("page")
+	if !ok {
+		c.JSON(http.StatusOK, gin.H{
+			"status":  "error",
+			"message": "Params page error",
+		})
+		return
+	}
+
+	page, err := strconv.Atoi(pagestr)
+	if err != nil {
+		c.JSON(http.StatusOK, gin.H{
+			"status":  "error",
+			"message": "Params page error",
+		})
+		return
+	}
+
+	image, ok := c.GetPostForm("image")
+	if !ok {
+		c.JSON(http.StatusOK, gin.H{
+			"status":  "error",
+			"message": "Params image error",
+		})
+		return
+	}
+	imagepath := filepath.Join(filesman.Filedir, image)
+
+	xposStr, ok := c.GetPostForm("xpos")
+	if !ok {
+		c.JSON(http.StatusOK, gin.H{
+			"status":  "error",
+			"message": "Params xpos error",
+		})
+		return
+	}
+	xpos, err := strconv.ParseFloat(xposStr, 64)
+	if err != nil {
+		c.JSON(http.StatusOK, gin.H{
+			"status":  "error",
+			"message": "Params xpos error",
+		})
+		return
+	}
+
+	yposStr, ok := c.GetPostForm("ypos")
+	if !ok {
+		c.JSON(http.StatusOK, gin.H{
+			"status":  "error",
+			"message": "Params ypos error",
+		})
+		return
+	}
+	ypos, err := strconv.ParseFloat(yposStr, 64)
+	if err != nil {
+		c.JSON(http.StatusOK, gin.H{
+			"status":  "error",
+			"message": "Params ypos error",
+		})
+		return
+	}
+
+	widthStr, ok := c.GetPostForm("width")
+	if !ok {
+		c.JSON(http.StatusOK, gin.H{
+			"status":  "error",
+			"message": "Params width error",
+		})
+		return
+	}
+	width, err := strconv.ParseFloat(widthStr, 64)
+	if err != nil {
+		c.JSON(http.StatusOK, gin.H{
+			"status":  "error",
+			"message": "Params width error",
+		})
+		return
+	}
+	hash := sha256.Sum256([]byte(pdf + image))
+	outfile := fmt.Sprintf("%x", hash) + "pdf"
+	outfilepath := filepath.Join(filesman.Filedir, outfile)
+
+	err = AddImageToPdf(pdfpath, outfilepath, imagepath, page, xpos, ypos, width)
+	if err != nil {
+		c.JSON(http.StatusOK, gin.H{
+			"status":  "error",
+			"message": "Merge error",
+		})
+		return
+	}
+
+	if err != nil {
+		c.JSON(http.StatusOK, gin.H{
+			"status":      "ok",
+			"resaultfile": outfile,
+		})
+	}
 }
