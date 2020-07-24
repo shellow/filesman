@@ -7,6 +7,7 @@ import (
 	"github.com/shellow/filesman"
 	"github.com/urfave/cli"
 	"io"
+	"io/ioutil"
 	"mime/multipart"
 	"net/http"
 	"os"
@@ -178,6 +179,17 @@ func download(c *cli.Context) error {
 	if err != nil {
 		return err
 	}
+
+	status := res.Header.Get("status")
+	if !strings.EqualFold(status,"ok") {
+		body, err := ioutil.ReadAll(res.Body)
+		if err != nil {
+			return err
+		}
+		fmt.Println(string(body))
+		return nil
+	}
+
 	sdir := c.String("sdir")
 	// 	f, err := os.Create(filePath)
 	fpath := filepath.Join(sdir, file)
