@@ -309,7 +309,7 @@ func (filesman *Filesman) ImgAddPdf(c *gin.Context) {
 		return
 	}
 	hash := sha256.Sum256([]byte(pdffile + image))
-	outfile := fmt.Sprintf("%x", hash) + "pdf"
+	outfile := fmt.Sprintf("%x", hash) + ".pdf"
 	outfilepath := filepath.Join(filesman.Filedir, outfile)
 
 	err = AddImageToPdf(pdfpath, outfilepath, imagepath, page, xpos, ypos, width)
