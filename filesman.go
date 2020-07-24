@@ -220,7 +220,7 @@ func AddImageToPdf(inputPath string, outputPath string, imagePath string, pageNu
 
 func (filesman *Filesman) ImgAddPdf(c *gin.Context) {
 	c.Header("Access-Control-Allow-Origin", "*")
-	pdf, ok := c.GetPostForm("pdf")
+	pdffile, ok := c.GetPostForm("pdf")
 	if !ok {
 		c.JSON(http.StatusOK, gin.H{
 			"status":  "error",
@@ -228,7 +228,7 @@ func (filesman *Filesman) ImgAddPdf(c *gin.Context) {
 		})
 		return
 	}
-	pdfpath := filepath.Join(filesman.Filedir, pdf)
+	pdfpath := filepath.Join(filesman.Filedir, pdffile)
 
 	pagestr, ok := c.GetPostForm("page")
 	if !ok {
@@ -308,7 +308,7 @@ func (filesman *Filesman) ImgAddPdf(c *gin.Context) {
 		})
 		return
 	}
-	hash := sha256.Sum256([]byte(pdf + image))
+	hash := sha256.Sum256([]byte(pdffile + image))
 	outfile := fmt.Sprintf("%x", hash) + "pdf"
 	outfilepath := filepath.Join(filesman.Filedir, outfile)
 
