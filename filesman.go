@@ -5,7 +5,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/minio/sha256-simd"
 	"github.com/tjfoc/gmsm/sm3"
-	"github.com/unidoc/unipdf/creator"
+	"github.com/unidoc/unipdf/v3/creator"
 	pdf "github.com/unidoc/unipdf/v3/model"
 	"io/ioutil"
 	"mime"
