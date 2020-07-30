@@ -139,9 +139,9 @@ func (filesman *Filesman) Upload(c *gin.Context) (filename string) {
 	}
 	c.JSON(http.StatusOK, gin.H{
 		"status": "ok",
-		"file":   fileName,
+		"file":   filename,
 	})
-	return fileName
+	return filename
 }
 
 func (filesman *Filesman) Download(c *gin.Context) {
