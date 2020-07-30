@@ -6,8 +6,8 @@ import (
 	"github.com/minio/sha256-simd"
 	"github.com/shellow/keyman"
 	"github.com/tjfoc/gmsm/sm3"
-	"github.com/unidoc/unipdf/v3/creator"
-	pdf "github.com/unidoc/unipdf/v3/model"
+	"github.com/unidoc/unipdf/creator"
+	pdf "github.com/unidoc/unipdf/model"
 	"io/ioutil"
 	"mime"
 	"net/http"
@@ -357,7 +357,11 @@ func (filesman *Filesman) ImgAddPdf(c *gin.Context) {
 	}
 	hash := sha256.Sum256([]byte(pdffile + image))
 	outfile := fmt.Sprintf("%x", hash) + ".pdf"
-	outfilepath := filepath.Join(filesman.Filedir, outfile)
+	outfileReal, err := GenFilename(c, outfile)
+	if err != nil {
+		return
+	}
+	outfilepath := filepath.Join(filesman.Filedir, outfileReal)
 
 	err = AddImageToPdf(pdfpath, outfilepath, imagepath, page, xpos, ypos, width)
 	if err != nil {
@@ -371,5 +375,37 @@ func (filesman *Filesman) ImgAddPdf(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{
 		"status":     "ok",
 		"resultfile": outfile,
+	})
+}
+
+func Listfile(prefix string) []string {
+	files, _ := filepath.Glob(prefix + "*")
+	len := len(files)
+	flist := make([]string, len)
+	for i, f := range files {
+		flist[i] = strings.Replace(f, prefix, "", 1)
+	}
+	return flist
+}
+
+func (filesman *Filesman) Listfile(c *gin.Context) {
+	c.Header("Access-Control-Allow-Origin", "*")
+
+	key := c.GetHeader("key")
+	addrstr := keyman.KeyToAddrStr(key)
+	if strings.EqualFold(addrstr, "") {
+		c.JSON(http.StatusOK, gin.H{
+			"status":  "error",
+			"message": "key error",
+		})
+		return
+	}
+
+	prefix := filepath.Join(filesman.Filedir, addrstr+"-")
+	flist := Listfile(prefix)
+
+	c.JSON(http.StatusOK, gin.H{
+		"status": "ok",
+		"files":  flist,
 	})
 }
