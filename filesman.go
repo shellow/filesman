@@ -112,12 +112,12 @@ func (filesman *Filesman) Upload(c *gin.Context) (filename string) {
 	}
 
 	filename = fileName + fileEndings[0]
-	filename, err = GenFilename(c, filename)
+	filenameReal, err := GenFilename(c, filename)
 	if err != nil {
 		return
 	}
 
-	newPath := filepath.Join(filesman.Filedir, fileName)
+	newPath := filepath.Join(filesman.Filedir, filenameReal)
 	//fmt.Printf("FileType: %s, File: %s\n", detectedFileType, newPath)
 
 	// write file
@@ -139,9 +139,9 @@ func (filesman *Filesman) Upload(c *gin.Context) (filename string) {
 	}
 	c.JSON(http.StatusOK, gin.H{
 		"status": "ok",
-		"file":   fileName + fileEndings[0],
+		"file":   fileName,
 	})
-	return fileName + fileEndings[0]
+	return fileName
 }
 
 func (filesman *Filesman) Download(c *gin.Context) {
