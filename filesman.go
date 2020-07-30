@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"github.com/gin-gonic/gin"
 	"github.com/minio/sha256-simd"
+	"github.com/shellow/keyman"
 	"github.com/tjfoc/gmsm/sm3"
 	"github.com/unidoc/unipdf/v3/creator"
 	pdf "github.com/unidoc/unipdf/v3/model"
@@ -28,6 +29,23 @@ func NewFilesman() *Filesman {
 	filesman.Filedir = "/tmp"
 	filesman.MaxUploadSize = 2 * 1024 * 1024 // 2 mb
 	return filesman
+}
+
+func BuildFilename(addr string, filename string) string {
+	return addr + "-" + filename
+}
+
+func GenFilename(c *gin.Context, filename string) (string, error) {
+	addr, err := keyman.TokenToAddrStr(c.GetHeader("token"))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"status":  "error",
+			"message": "Invalid token",
+		})
+		return "", err
+	}
+	filename = BuildFilename(addr, filename)
+	return filename, nil
 }
 
 func (filesman *Filesman) Upload(c *gin.Context) (filename string) {
@@ -92,7 +110,14 @@ func (filesman *Filesman) Upload(c *gin.Context) (filename string) {
 		})
 		return
 	}
-	newPath := filepath.Join(filesman.Filedir, fileName+fileEndings[0])
+
+	filename = fileName + fileEndings[0]
+	filename, err = GenFilename(c, filename)
+	if err != nil {
+		return
+	}
+
+	newPath := filepath.Join(filesman.Filedir, fileName)
 	//fmt.Printf("FileType: %s, File: %s\n", detectedFileType, newPath)
 
 	// write file
@@ -121,7 +146,13 @@ func (filesman *Filesman) Upload(c *gin.Context) (filename string) {
 
 func (filesman *Filesman) Download(c *gin.Context) {
 	c.Header("Access-Control-Allow-Origin", "*")
+
 	filename := c.Param("filename")
+	filename, err := GenFilename(c, filename)
+	if err != nil {
+		return
+	}
+
 	filepath := filepath.Join(filesman.Filedir, filename)
 	c.Header("status", "ok")
 	c.File(filepath)
@@ -130,6 +161,11 @@ func (filesman *Filesman) Download(c *gin.Context) {
 func (filesman *Filesman) Hash(c *gin.Context) {
 	c.Header("Access-Control-Allow-Origin", "*")
 	filename := c.Param("filename")
+
+	filename, err := GenFilename(c, filename)
+	if err != nil {
+		return
+	}
 	filepath := filepath.Join(filesman.Filedir, filename)
 
 	file, err := os.OpenFile(filepath, os.O_RDONLY, 0644)
@@ -229,6 +265,12 @@ func (filesman *Filesman) ImgAddPdf(c *gin.Context) {
 		})
 		return
 	}
+
+	pdffile, err := GenFilename(c, pdffile)
+	if err != nil {
+		return
+	}
+
 	pdfpath := filepath.Join(filesman.Filedir, pdffile)
 
 	pagestr, ok := c.GetPostForm("page")
@@ -255,6 +297,10 @@ func (filesman *Filesman) ImgAddPdf(c *gin.Context) {
 			"status":  "error",
 			"message": "Params image error",
 		})
+		return
+	}
+	image, err = GenFilename(c, image)
+	if err != nil {
 		return
 	}
 	imagepath := filepath.Join(filesman.Filedir, image)
@@ -323,7 +369,7 @@ func (filesman *Filesman) ImgAddPdf(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, gin.H{
-		"status":      "ok",
-		"resaultfile": outfile,
+		"status":     "ok",
+		"resultfile": outfile,
 	})
 }
