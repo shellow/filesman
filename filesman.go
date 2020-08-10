@@ -1,6 +1,8 @@
 package filesman
 
 import (
+	"bytes"
+	"encoding/base64"
 	"fmt"
 	"github.com/gin-gonic/gin"
 	"github.com/minio/sha256-simd"
@@ -375,6 +377,217 @@ func (filesman *Filesman) ImgAddPdf(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{
 		"status":     "ok",
 		"resultfile": outfile,
+	})
+}
+
+func (filesman *Filesman) ImgAddPdfOnce(c *gin.Context) {
+	c.Header("Access-Control-Allow-Origin", "*")
+	if err := c.Request.ParseMultipartForm(filesman.MaxUploadSize); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"status":  "error",
+			"message": "Could not parse multipart form",
+		})
+		return
+	}
+
+	xposStr := c.Request.FormValue("xpos")
+	xpos, err := strconv.ParseFloat(xposStr, 64)
+	if err != nil {
+		c.JSON(http.StatusOK, gin.H{
+			"status":  "error",
+			"message": "Params xpos error",
+		})
+		return
+	}
+
+	yposStr := c.Request.FormValue("ypos")
+	ypos, err := strconv.ParseFloat(yposStr, 64)
+	if err != nil {
+		c.JSON(http.StatusOK, gin.H{
+			"status":  "error",
+			"message": "Params ypos error",
+		})
+		return
+	}
+
+	widthStr := c.Request.FormValue("width")
+	width, err := strconv.ParseFloat(widthStr, 64)
+	if err != nil {
+		c.JSON(http.StatusOK, gin.H{
+			"status":  "error",
+			"message": "Params width error",
+		})
+		return
+	}
+
+	pagestr := c.Request.FormValue("page")
+	pageNum, err := strconv.Atoi(pagestr)
+	if err != nil {
+		c.JSON(http.StatusOK, gin.H{
+			"status":  "error",
+			"message": "Params page error",
+		})
+		return
+	}
+
+	// parse and validate file and post parameters
+	pdffile, fileHeader, err := c.Request.FormFile("pdf")
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"status":  "error",
+			"message": "Invalid file",
+		})
+		return
+	}
+	defer pdffile.Close()
+	// Get and print out file size
+	fileSize := fileHeader.Size
+	// validate file size
+	if fileSize > filesman.MaxUploadSize {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"status":  "error",
+			"message": "File too big",
+		})
+		return
+	}
+	pdffileBytes, err := ioutil.ReadAll(pdffile)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"status":  "error",
+			"message": "Invalid file",
+		})
+		return
+	}
+
+	// check file type, detectcontenttype only needs the first 512 bytes
+	detectedFileType := http.DetectContentType(pdffileBytes)
+	switch detectedFileType {
+	case "application/pdf":
+		break
+	default:
+		c.JSON(http.StatusBadRequest, gin.H{
+			"status":  "error",
+			"message": "Invalid file type",
+		})
+		return
+	}
+
+	// parse and validate file and post parameters
+	imgfile, fileHeader, err := c.Request.FormFile("image")
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"status":  "error",
+			"message": "Invalid file",
+		})
+		return
+	}
+	defer pdffile.Close()
+	// Get and print out file size
+	fileSize = fileHeader.Size
+	// validate file size
+	if fileSize > filesman.MaxUploadSize {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"status":  "error",
+			"message": "File too big",
+		})
+		return
+	}
+	imgfileBytes, err := ioutil.ReadAll(imgfile)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"status":  "error",
+			"message": "Invalid file",
+		})
+		return
+	}
+
+	// check file type, detectcontenttype only needs the first 512 bytes
+	detectedFileType = http.DetectContentType(imgfileBytes)
+	switch detectedFileType {
+	case "image/jpeg", "image/jpg":
+	case "image/gif", "image/png":
+		break
+	default:
+		c.JSON(http.StatusBadRequest, gin.H{
+			"status":  "error",
+			"message": "Invalid file type",
+		})
+		return
+	}
+
+	content := creator.New()
+
+	// Prepare the image.
+	img, err := content.NewImageFromData(imgfileBytes)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"status":  "error",
+			"message": err,
+		})
+		return
+	}
+	img.ScaleToWidth(width)
+	img.SetPos(xpos, ypos)
+
+	pdfReader, err := pdf.NewPdfReader(bytes.NewReader(pdffileBytes))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"status":  "error",
+			"message": err,
+		})
+		return
+	}
+
+	numPages, err := pdfReader.GetNumPages()
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"status":  "error",
+			"message": err,
+		})
+		return
+	}
+
+	// Load the pages.
+	for i := 0; i < numPages; i++ {
+		page, err := pdfReader.GetPage(i + 1)
+		if err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{
+				"status":  "error",
+				"message": err,
+			})
+			return
+		}
+
+		// Add the page.
+		err = content.AddPage(page)
+		if err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{
+				"status":  "error",
+				"message": err,
+			})
+			return
+		}
+
+		// If the specified page, or -1, apply the image to the page.
+		if i+1 == pageNum || pageNum == -1 {
+			_ = content.Draw(img)
+		}
+	}
+
+	buffer := bytes.NewBuffer([]byte{})
+	err = content.Write(buffer)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"status":  "error",
+			"message": err,
+		})
+		return
+	}
+
+	encoded := base64.StdEncoding.EncodeToString(buffer.Bytes())
+	c.JSON(http.StatusBadRequest, gin.H{
+		"status": "ok",
+		"file":   encoded,
 	})
 }
 

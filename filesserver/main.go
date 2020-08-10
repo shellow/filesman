@@ -44,8 +44,9 @@ func server() {
 		c.Header("Access-Control-Allow-Origin", "*")
 		c.String(http.StatusOK, "Hello World")
 	})
-	router.POST("/filesm/upload", upload)
-	router.GET("/filesm/download/:filename", Filesm.Download)
+	router.POST("/files/upload", upload)
+	router.GET("/files/download/:filename", Filesm.Download)
+	router.POST("/files/imgsigpdf", Filesm.ImgAddPdfOnce)
 
 	s := &http.Server{
 		Addr:           LISTENADDR,
