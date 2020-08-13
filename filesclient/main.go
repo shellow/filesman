@@ -243,7 +243,7 @@ func download(c *cli.Context) error {
 
 func imgaddpdf(c *cli.Context) error {
 	murl := c.GlobalString("surl")
-	murl = murl + "/files/imgsigpdf"
+	murl = murl + "/files/imgsignpdfonce"
 	pdf := c.String("pdf")
 	pdff, err := os.Open(pdf)
 	if err != nil {

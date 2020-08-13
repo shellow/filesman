@@ -46,7 +46,7 @@ func server() {
 	})
 	router.POST("/files/upload", upload)
 	router.GET("/files/download/:filename", Filesm.Download)
-	router.POST("/files/imgsigpdf", Filesm.ImgAddPdfOnce)
+	router.POST("/files/imgsignpdf", Filesm.ImgAddPdfOnce)
 
 	s := &http.Server{
 		Addr:           LISTENADDR,
